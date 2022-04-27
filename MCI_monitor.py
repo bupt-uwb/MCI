@@ -11,7 +11,9 @@ from PIL import Image, ImageDraw, ImageFont
 
 from uwb_radar import uwb_radar
 from human_detection import human_detector
-
+a=100
+b=1
+ 
 
 '''
 用于传递YOLO v5需要的参数，部分参数已设置默认值
