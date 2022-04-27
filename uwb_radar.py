@@ -173,7 +173,7 @@ class uwb_radar:
             else:
                 self.leiji_data_storage = np.vstack((self.leiji_data_storage,save2))
             if self.leiji_data_storage.shape[0] >= 20 * 60 * 1:
-                sio.savemat('D:/AllAboutPostGraduateWork/项目/301医院/二阶段/MCI_monitor/data_storage/20220426testing{num}.mat'.format(num=num), {'data': self.leiji_data_storage})
+                sio.savemat('D:/AllAboutPostGraduateWork/项目/301医院/二阶段/MCI_monitor/data_storage/20220427indoorwyl{num}.mat'.format(num=num), {'data': self.leiji_data_storage})
                 self.leiji_data_storage = None
                 num += 1
 
