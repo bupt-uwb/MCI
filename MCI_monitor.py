@@ -8,10 +8,11 @@ import argparse
 import cv2
 import tools
 from PIL import Image, ImageDraw, ImageFont
-
 from uwb_radar import uwb_radar
 from human_detection import human_detector
-
+from socket import *
+import time
+import select
 
 '''
 用于传递YOLO v5需要的参数，部分参数已设置默认值
@@ -51,7 +52,6 @@ def parse_opt():
 def draw():
     global hd, uwb, thermal_frame, thermal_image, end
     # global hd
-
     while 1:
         # sleep(0.01)
         # print(hd.work)
@@ -71,7 +71,6 @@ def draw():
             thermal_height = 288
             # print('iou')
             # print(iou.shape)
-
             if isman_camera and uwb.can_read:
                 amplitude, index, energy_ratio = tools.sp(uwb.pure_data[-1, :], num)
                 # print(index)
@@ -165,13 +164,57 @@ def cv2ImgAddText(img, left, top, hr, br, t, d, textColor=(255, 0, 0), textSize=
     draw.text((left + 10, top+10), str(hr), textColor, font=fontStyle)
     draw.text((left + 10, top+40), str(br), textColor, font=fontStyle)
     draw.text((left + 10, top+70), str(t)+'℃', textColor, font=fontStyle)
-
+    #  **********************************************************************************************
+    if resultoxi['1']['oximeter'] == 0:
+        resultoxi['1']['oximeter'] = 80
+    accuracy_hr = 1 - abs((int(resultoxi['1']['oximeter']) - int(hr))) / int(resultoxi['1']['oximeter'])
+    with open("20220427indoorwyl.txt", 'a') as f:
+        f.write(str(hr))
+        f.write(' ' + str(resultoxi['1']['oximeter']))
+        f.write(' ' + str(round(100 * accuracy_hr, 1)) + '%' + ' 测得呼吸：' + str(br) + ' 测得体温:' + str(t) + '\n')
+        f.close()
+    # **********************************************************************************************
     # draw.text((left, top+100), str(d), textColor, font=fontStyle)
     # draw.text((left, top+50), '血氧仪：'+str(result[target]['oximeter']), textColor, font=fontStyle)
 
     # 转换回OpenCV格式
     # img.show()
     return cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2BGR)
+
+'''
+血氧仪的连接与数据传输
+Input:
+    port_oximeter: 连接血氧仪的端口
+Output:
+    oximeter_result：血氧仪测得的目标心率
+'''
+def oximeter(port_oximeter):
+    global resultoxi
+    tcpCliSock3= socket(AF_INET,SOCK_STREAM)
+    tcpCliSock3.setblocking(False)
+    tcpCliSock3.bind(('', port_oximeter))
+    tcpCliSock3.listen()
+    print('oximeter is ready.')
+    inputs = [tcpCliSock3, ]
+    while 1:
+        time.sleep(0.005)
+        r_list, w_list, e_list = select.select(inputs, [], [],0.005)
+        for event in r_list:
+            if event == tcpCliSock3:
+                new_sock, addr = event.accept()
+                inputs=[tcpCliSock3,new_sock,]
+            else:
+                data = event.recv(1024)
+                # logger.info(data)
+                if data!=b'' and data!=b'socket connected':
+                    # logger.info(data)
+                    oximeter_result=data.split()
+                    try:
+                        oximeter_tag_num=bytes.decode(oximeter_result[-1])[-1]
+                        # if oximeter_list[oximeter_tag_num - 1] in result.keys():
+                        resultoxi[oximeter_tag_num]['oximeter'] = int(oximeter_result[-2])
+                    except:
+                        print('oximeter id wrong')
 
 def thermal():
     global thermal_frame, thermal_image, end
@@ -204,7 +247,13 @@ if __name__ == "__main__":
     # cam.setDaemon(True)
     # cam.start()
     hd = human_detector(opt)
-
+    port_oximeter = 10001
+    resultoxi = {
+        '1': {'oximeter': 80,
+              },
+        # '2': {'oximeter': 80,
+        #       }
+    }
     args = {
         'set_enable':1,
         'set_iterations':64,
@@ -227,5 +276,7 @@ if __name__ == "__main__":
 
     t = threading.Thread(name="thermal", target=thermal)
     t.start()
+    t2 = threading.Thread(name="oximeter", target=oximeter, args=(port_oximeter,))  # 线程2：脉搏血氧仪的连接与数据传输
+    t2.start()
 
     draw()
