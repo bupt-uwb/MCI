@@ -51,16 +51,15 @@ def parse_opt():
 
 def draw():
     global hd, uwb, thermal_frame, thermal_image, end, smaller_k, phase_flag
-    # global hd
+    hr_list = [[80, 80, 80, 80, 80]]  # 二维
+    br_list = [[80, 80, 80, 80, 80]]  # 二维
+    t_list = np.zeros(1)  # 一维
+    num = 1
+    last_num = num
     while 1:
-        # sleep(0.01)
-        # print(hd.work)
-        if hd.work: 
-            # frame = frame[:,:,::-1]
+        if hd.work:
             isman_camera = hd.isman_camera
             num = hd.num
-            # print('num:')
-            # print(num)                                                             
             iou = np.array(hd.iou)
             iou_sorted = iou.copy()
             frame = hd.frame_output
@@ -69,36 +68,84 @@ def draw():
             cam_height = frame.shape[0]
             thermal_width = 384
             thermal_height = 288
-            # print('iou')
-            # print(iou.shape)
+
             if isman_camera and uwb.can_read:
                 amplitude, index, energy_ratio = tools.sp(uwb.pure_data[-1, :], num)
-                hr = []
-                br = []
                 temp = []
+
+                if num <= last_num:
+                    hr_list = hr_list[0: num: 1]
+                    br_list = br_list[0: num: 1]
+                    for i in range(num):
+                        d = (index[i] + 50) / 156 + 0.2
+                        h1, b1, k_val1, h2, b2, k_val2 = uwb.vital_signs(d - 0.1, d + 0.1)
+                        if k_val1 or k_val2:
+                            if k_val1 <= k_val2:
+                                smaller_k = k_val1
+                                hr_list[i].append(int(round(h1)))
+                                br_list[i].append(int(round(b1)))
+                                if len(hr_list[i]) > 5:
+                                    hr_list[i].pop(0)
+                                if len(br_list[i]) > 5:
+                                    br_list[i].pop(0)
+                            else:
+                                smaller_k = k_val2
+                                phase_flag = 1
+                                hr_list[i].append(int(round(h2)))
+                                br_list[i].append(int(round(b2)))
+                                if len(hr_list[i]) > 5:
+                                    hr_list[i].pop(0)
+                                if len(br_list[i]) > 5:
+                                    br_list[i].pop(0)
+
+                elif num > last_num:
+                    for i in range(last_num):
+                        d = (index[i] + 50) / 156 + 0.2
+                        h1, b1, k_val1, h2, b2, k_val2 = uwb.vital_signs(d - 0.1, d + 0.1)
+                        if k_val1 or k_val2:
+                            if k_val1 <= k_val2:
+                                smaller_k = k_val1
+                                hr_list[i].append(int(round(h1)))
+                                br_list[i].append(int(round(b1)))
+                                if len(hr_list[i]) > 5:
+                                    hr_list[i].pop(0)
+                                if len(br_list[i]) > 5:
+                                    br_list[i].pop(0)
+                            else:
+                                smaller_k = k_val2
+                                phase_flag = 1
+                                hr_list[i].append(int(round(h2)))
+                                br_list[i].append(int(round(b2)))
+                                if len(hr_list[i]) > 5:
+                                    hr_list[i].pop(0)
+                                if len(br_list[i]) > 5:
+                                    br_list[i].pop(0)
+                    for i in range(last_num, num):
+                        hr_list.append([80, 80, 80, 80, 80])
+                        br_list.append([80, 80, 80, 80, 80])
+                        d = (index[i] + 50) / 156 + 0.2
+                        h1, b1, k_val1, h2, b2, k_val2 = uwb.vital_signs(d - 0.1, d + 0.1)
+                        if k_val1 or k_val2:
+                            if k_val1 <= k_val2:
+                                smaller_k = k_val1
+                                hr_list[i].append(int(round(h1)))
+                                br_list[i].append(int(round(b1)))
+                                if len(hr_list[i]) > 5:
+                                    hr_list[i].pop(0)
+                                if len(br_list[i]) > 5:
+                                    br_list[i].pop(0)
+                            else:
+                                smaller_k = k_val2
+                                phase_flag = 1
+                                hr_list[i].append(int(round(h2)))
+                                br_list[i].append(int(round(b2)))
+                                if len(hr_list[i]) > 5:
+                                    hr_list[i].pop(0)
+                                if len(br_list[i]) > 5:
+                                    br_list[i].pop(0)
 
                 for i in range(num):
                     d = (index[i] + 50) / 156 + 0.2
-                    h1, b1, k_val1, h2, b2, k_val2 = uwb.vital_signs(d - 0.1, d + 0.1)
-                    if k_val1 or k_val2:
-                        if k_val1 <= k_val2:
-                            smaller_k = k_val1
-                            hr.append(int(round(h1)))
-                            br.append(int(round(b1)))
-                            if len(hr) > 6:
-                                hr.pop(0)
-                            if len(br) > 6:
-                                br.pop(0)
-                        else:
-                            smaller_k = k_val2
-                            phase_flag = 1
-                            hr.append(int(round(h2)))
-                            br.append(int(round(b2)))
-                            if len(hr) > 6:
-                                hr.pop(0)
-                            if len(br) > 6:
-                                br.pop(0)
-
                     biggest = np.argmax(iou[:, 3])
                     iou_sorted[i] = iou[biggest]
                     iou = np.delete(iou, biggest, 0)
@@ -119,8 +166,8 @@ def draw():
                     # cv2.putText(frame, str(h), (int(x * cam_width), int(y * cam_height)), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
                     # cv2.putText(frame, str(b), (int(x * cam_width), int(y * cam_height)), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
                     # cv2.putText(frame, str(t), (int(x * cam_width), int(y * cam_height)), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
-                    frame = cv2ImgAddText(frame, int((x - wi / 2) * cam_width), int((y - he / 2) * cam_height), hr, br, t, d)
-                    
+                    frame = cv2ImgAddText(frame, int((x - wi / 2) * cam_width), int((y - he / 2) * cam_height), np.mean(hr_list[i]), np.mean(br_list[i]), t, d)
+            last_num = num
 
                     
             frame_resized = cv2.resize(frame, (1280, 720))
@@ -150,6 +197,7 @@ def setRoi(x, y, range):
         x = x - 1
     return x, y
 
+
 def cv2ImgAddText(img, left, top, hr, br, t, d, textColor=(255, 0, 0), textSize=30):
     if (isinstance(img, np.ndarray)):  # 判断是否OpenCV图片类型
         img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
@@ -159,18 +207,18 @@ def cv2ImgAddText(img, left, top, hr, br, t, d, textColor=(255, 0, 0), textSize=
     fontStyle = ImageFont.truetype(
         "simhei"
         ".ttf", textSize, encoding="utf-8")
-    draw.text((left + 10, top+10), str(round(sum(hr)/len(hr))), textColor, font=fontStyle)
-    draw.text((left + 10, top+40), str(round(sum(br)/len(br))), textColor, font=fontStyle)
+    draw.text((left + 10, top+10), str(hr), textColor, font=fontStyle)
+    draw.text((left + 10, top+40), str(br), textColor, font=fontStyle)
     draw.text((left + 10, top+70), str(t)+'℃', textColor, font=fontStyle)
     #  **********************************************************************************************
     if resultoxi['1']['oximeter'] == 0:
         resultoxi['1']['oximeter'] = 80
-    accuracy_hr = 1 - abs((int(resultoxi['1']['oximeter']) - int(hr[-1]))) / int(resultoxi['1']['oximeter'])
-    with open("20220524indoor-wyl-with_range.txt", 'a') as f:
-        f.write(str(round(sum(hr)/len(hr))))
+    accuracy_hr = 1 - abs((int(resultoxi['1']['oximeter']) - int(hr))) / int(resultoxi['1']['oximeter'])
+    with open("20220531indoor-wyl-with_range.txt", 'a') as f:
+        f.write(str(hr))
         f.write(' ' + str(resultoxi['1']['oximeter']))
-        f.write(' ' + str(round(100*accuracy_hr, 1)) + '%' + ' b:' + str(round(sum(br)/len(br))) +
-                ' t:' + str(t) + ' k:' + str(smaller_k) + ' phaseornot:' + str(phase_flag) + '\n')
+        f.write(' ' + str(round(100*accuracy_hr, 1)) + '%' + ' b:' + str(br) +
+                ' t:' + str(t) + ' k:' + str(smaller_k) + ' PhaseOrNot:' + str(phase_flag) + '\n')
         f.close()
     # **********************************************************************************************
     # draw.text((left, top+100), str(d), textColor, font=fontStyle)
@@ -262,7 +310,7 @@ if __name__ == "__main__":
         'set_tx_power':2,
         'set_downconversion':0,
         'set_frame_area_offset':0.18,
-        'set_frame_area':[0.2, 1.9],
+        'set_frame_area':[0.2, 1.7],
         'set_tx_center_frequency':3,
         'set_prf_div':16,
         'set_fps':40}
